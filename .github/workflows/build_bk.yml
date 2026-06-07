@@ -1,0 +1,36 @@
+# ===== 이 워크플로의 이름 (GitHub Actions 화면에 표시되는 라벨) =====
+name: Build and Push Image
+
+# ===== 언제 실행할지 (트리거) =====
+on:
+  push:                  # push 이벤트가 발생하면
+    branches: [ main ]   # 그 중에서도 main 브랜치에 push될 때만 실행
+
+# ===== 실제로 수행할 작업들 =====
+jobs:
+  build:                       # 'build'라는 이름의 작업 (job)
+    runs-on: ubuntu-latest     # GitHub이 우분투 컴퓨터(러너)를 띄워서 여기서 실행
+    permissions:               # 이 작업이 가질 권한
+      contents: read           #   - 내 repo 코드를 읽을 권한
+      packages: write          #   - GHCR(레지스트리)에 이미지를 올릴(write) 권한 ⭐
+    steps:                     # 위에서 아래로 순서대로 실행할 단계들
+
+      # --- ① 내 repo 코드를 러너로 다운로드 (빌드할 재료 가져오기) ---
+      - name: Checkout code
+        uses: actions/checkout@v4   # GitHub 공식 '코드 체크아웃' 부품 사용
+
+      # --- ② GHCR(이미지 창고)에 로그인 (이미지 올리려면 먼저 로그인 필요) ---
+      - name: Log in to GHCR
+        uses: docker/login-action@v3        # '레지스트리 로그인' 부품
+        with:
+          registry: ghcr.io                       # 로그인할 레지스트리 = GitHub Container Registry
+          username: ${{ github.actor }}           # 실행한 사람 계정명 (GitHub이 자동으로 채움)
+          password: ${{ secrets.GITHUB_TOKEN }}   # GitHub이 자동 발급하는 임시 토큰 (PAT 안 만들어도 됨)
+
+      # --- ③ 이미지 빌드 후 GHCR에 push (어제 손으로 한 podman build를 자동화!) ---
+      - name: Build and push
+        uses: docker/build-push-action@v6   # '도커 빌드 + push' 부품
+        with:
+          context: ./app                              # app 폴더의 Dockerfile로 빌드 (재료 위치)
+          push: true                                  # 빌드만 하지 말고 GHCR에 올려라
+          tags: ghcr.io/ayatorious/my-web-app:latest  # 만든 이미지의 이름표(레지스트리주소/이름:태그)
